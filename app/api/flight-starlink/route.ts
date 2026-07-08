@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import { evm, Mppx, stripe as stripeMpp, tempo } from "mppx/server"
 import { solana } from "@solana/mpp/server"
+import { facilitator as cdpFacilitator } from "@coinbase/x402"
 import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, getFleetStats, isSupportedAirline } from "@/lib/fleet"
 import { extractCryptoTxHash, getOrCreateDepositAddress, recordCryptoPayment } from "@/lib/crypto-payments"
@@ -17,8 +18,30 @@ const PATH_USD_MAINNET = "0x20c000000000000000000000b9537d11c60e8b50"
 const CARD_PRICE = "0.50"
 const CRYPTO_PRICE = "0.01"
 
-// x402 facilitator URL for EVM settlement
-const X402_FACILITATOR = "https://x402.org/facilitator"
+// x402 facilitator: CDP (Coinbase) with JWT auth
+const x402Facilitator = (() => {
+  const { url, createAuthHeaders } = cdpFacilitator
+  return {
+    async verify(paymentPayload: unknown, paymentRequirements: unknown) {
+      const headers = await createAuthHeaders()
+      const response = await fetch(`${url}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers.verify },
+        body: JSON.stringify({ paymentPayload, paymentRequirements, x402Version: 2 }),
+      })
+      return response.json()
+    },
+    async settle(paymentPayload: unknown, paymentRequirements: unknown) {
+      const headers = await createAuthHeaders()
+      const response = await fetch(`${url}/settle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers.settle },
+        body: JSON.stringify({ paymentPayload, paymentRequirements, x402Version: 2 }),
+      })
+      return response.json()
+    },
+  }
+})()
 
 // Solana USDC mint address
 const SOLANA_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -85,7 +108,7 @@ export async function POST(request: NextRequest) {
             evm.charge({
               currency: isTestnet ? evm.assets.baseSepolia.USDC : evm.assets.base.USDC,
               recipient: baseRecipient,
-              x402: { facilitator: X402_FACILITATOR },
+              x402: { facilitator: x402Facilitator },
             }),
           ]
         : []),
@@ -120,20 +143,18 @@ export async function POST(request: NextRequest) {
 
     const mppx = Mppx.create({ methods, realm, secretKey: mppSecretKey })
 
-    // Build compose entries for all available crypto methods + card
-    const composeEntries: [string, Record<string, unknown>][] = []
-    if (baseRecipient) {
-      composeEntries.push(['evm/charge', { amount: CRYPTO_PRICE, description }])
-    }
-    if (solanaRecipient) {
-      composeEntries.push(['solana/charge', { amount: CRYPTO_PRICE, description }])
-    }
-    if (recipientAddress) {
-      composeEntries.push(['tempo/charge', { amount: CRYPTO_PRICE, description }])
-    }
-    composeEntries.push(['stripe/charge', { amount: CARD_PRICE, currency: 'usd', decimals: 2, description }])
+    // Compose all available payment methods with per-method pricing
+    const cryptoOpts = { amount: CRYPTO_PRICE, description } as const
+    const cardOpts = { amount: CARD_PRICE, currency: 'usd', decimals: 2, description } as const
 
-    const result = await mppx.compose(...composeEntries as [any, ...any[]])(request)
+    const result = await mppx.compose(
+      ...[
+        baseRecipient && ['evm/charge', cryptoOpts],
+        solanaRecipient && ['solana/charge', cryptoOpts],
+        recipientAddress && ['tempo/charge', cryptoOpts],
+        ['stripe/charge', cardOpts],
+      ].filter(Boolean),
+    )(request)
 
     // If payment is required, return the challenge
     if (result.status === 402) {
