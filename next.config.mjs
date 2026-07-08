@@ -6,6 +6,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  turbopack: {
+    root: new URL('.', import.meta.url).pathname,
+  },
 }
 
 export default nextConfig

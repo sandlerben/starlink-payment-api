@@ -2,6 +2,7 @@ import crypto from "crypto"
 import { Mppx, stripe as stripeMpp, tempo } from "mppx/server"
 import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, getFleetStats, isSupportedAirline } from "@/lib/fleet"
+import { extractTempoTxHash, getOrCreateDepositAddress, recordCryptoPayment } from "@/lib/crypto-payments"
 import { NextRequest } from "next/server"
 
 // MPP secret key for securing payment challenges
@@ -11,14 +12,15 @@ const mppSecretKey = process.env.MPP_SECRET_KEY || crypto.randomBytes(32).toStri
 const PATH_USD_TESTNET = "0x20c0000000000000000000000000000000000000"
 const PATH_USD_MAINNET = "0x20c000000000000000000000b9537d11c60e8b50"
 
-const isTestnet = process.env.TEMPO_TESTNET !== "false"
-
 // Prices: $0.50 for card, $0.01 for crypto
 const CARD_PRICE = "0.50"
 const CRYPTO_PRICE = "0.01"
 
 export async function POST(request: NextRequest) {
   try {
+    // Read at request time so env vars are picked up correctly per deployment
+    const isTestnet = process.env.TEMPO_TESTNET === "true"
+
     // Clone the request to read the body
     const clonedRequest = request.clone()
     const body = await clonedRequest.json().catch(() => ({}))
@@ -40,7 +42,7 @@ export async function POST(request: NextRequest) {
     // Extract airline code to check if supported
     const airlineMatch = flightNumber.match(/^([A-Z]{2,3})/i)
     const airlineCode = airlineMatch?.[1]?.toUpperCase() || ""
-    
+
     if (!isSupportedAirline(airlineCode)) {
       return Response.json(
         {
@@ -54,10 +56,16 @@ export async function POST(request: NextRequest) {
 
     const description = `Flight Starlink Check: ${flightNumber.toUpperCase()}`
 
-    // Recipient address for crypto payments (configure via env var)
-    const recipientAddress = process.env.TEMPO_RECIPIENT_ADDRESS as `0x${string}` | undefined
+    // Try to get a Stripe-managed Tempo deposit address; fall back to env var; null = no crypto
+    const recipientAddress: `0x${string}` | null =
+      await getOrCreateDepositAddress("tempo").catch(() => null) ??
+      (process.env.TEMPO_RECIPIENT_ADDRESS as `0x${string}` | undefined) ??
+      null
 
-    // Create MPP handler with both Tempo (crypto) and Stripe (card)
+    // Use the incoming host as the realm so it matches any alias or custom domain
+    const realm = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? undefined
+
+    // Create MPP handler with Tempo (crypto, if address available) and Stripe (card)
     const mppx = Mppx.create({
       methods: [
         ...(recipientAddress
@@ -75,10 +83,11 @@ export async function POST(request: NextRequest) {
           secretKey: process.env.STRIPE_SECRET_KEY!,
         }),
       ],
+      realm,
       secretKey: mppSecretKey,
     })
 
-    // Per-method pricing: $0.01 crypto, $0.50 card
+    // Per-method pricing: $0.01 crypto (when available), $0.50 card
     const result = recipientAddress
       ? await mppx.compose(
           ['tempo/charge', { amount: CRYPTO_PRICE, description }],
@@ -86,7 +95,7 @@ export async function POST(request: NextRequest) {
         )(request)
       : await mppx.charge({
           amount: CARD_PRICE,
-          currency: 'usd',
+          currency: "usd",
           decimals: 2,
           description,
         })(request)
@@ -96,11 +105,22 @@ export async function POST(request: NextRequest) {
       return result.challenge
     }
 
+    // Wrap withReceipt to also record Tempo payments asynchronously
+    const withReceiptAndRecord = (response: Response) => {
+      const finalResponse = result.withReceipt(response)
+      const txHash = extractTempoTxHash(finalResponse)
+      if (txHash) {
+        recordCryptoPayment(txHash, "tempo", 1)
+          .catch((err) => console.error("Failed to record crypto payment:", err))
+      }
+      return finalResponse
+    }
+
     // Payment successful - look up flight info via FlightAware
     const flightInfo = await getFlightFromAeroAPI(flightNumber, date)
 
     if (!flightInfo) {
-      return result.withReceipt(
+      return withReceiptAndRecord(
         Response.json(
           {
             success: true,
@@ -116,9 +136,9 @@ export async function POST(request: NextRequest) {
 
     // Look up aircraft WiFi provider from our fleet database
     const tailNumber = flightInfo.tailNumber
-    
+
     if (!tailNumber) {
-      return result.withReceipt(
+      return withReceiptAndRecord(
         Response.json({
           success: true,
           flightNumber: flightInfo.flightNumber,
@@ -137,7 +157,7 @@ export async function POST(request: NextRequest) {
     const aircraftInfo = getAircraftWifiProvider(tailNumber)
 
     if (!aircraftInfo) {
-      return result.withReceipt(
+      return withReceiptAndRecord(
         Response.json({
           success: true,
           flightNumber: flightInfo.flightNumber,
@@ -155,7 +175,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Return the complete flight Starlink information with payment receipt
-    return result.withReceipt(
+    return withReceiptAndRecord(
       Response.json({
         success: true,
         flightNumber: flightInfo.flightNumber,

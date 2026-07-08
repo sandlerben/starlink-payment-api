@@ -1,72 +1,81 @@
 import "server-only"
 
-import { Credential } from "mppx"
-import NodeCache from "node-cache"
+import { Receipt } from "mppx"
 import { stripe } from "./stripe"
 
-// In-memory cache for deposit addresses (TTL: 5 minutes)
-// NOTE: For production, use a distributed cache like Redis
-const paymentCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
+type DepositAddressResponse = {
+  id: string
+  address: string
+  network: string
+}
 
-export async function createPayToAddress(request: Request): Promise<`0x${string}`> {
-  const authHeader = request.headers.get("authorization")
+// Cache one deposit address per network for the lifetime of the process
+const depositAddressCache = new Map<string, Promise<string>>()
 
-  // If there's already a payment credential, extract the address from it
-  if (authHeader && Credential.extractPaymentScheme(authHeader)) {
-    const credential = Credential.fromRequest(request)
-    const toAddress = credential.challenge.request.recipient as `0x${string}`
+export async function getOrCreateDepositAddress(network: string = "tempo"): Promise<`0x${string}`> {
+  if (!depositAddressCache.has(network)) {
+    depositAddressCache.set(
+      network,
+      (async () => {
+        // Reuse an existing deposit address if one already exists
+        const list = (await stripe.rawRequest("GET", "/v1/crypto/deposit_addresses", {
+          network,
+          limit: 1,
+        })) as { data?: DepositAddressResponse[] }
 
-    if (!toAddress) {
-      throw new Error("PaymentIntent did not return expected crypto deposit details")
-    }
-    if (!paymentCache.has(toAddress)) {
-      throw new Error("Invalid payTo address: not found in server cache")
-    }
-    return toAddress
+        if (list.data && list.data.length > 0) {
+          console.log(`Reusing deposit address ${list.data[0].id} for network ${network}`)
+          return list.data[0].address
+        }
+
+        // Create a new one
+        const created = (await stripe.rawRequest("POST", "/v1/crypto/deposit_addresses", {
+          network,
+        })) as DepositAddressResponse
+
+        console.log(`Created deposit address ${created.id} for network ${network}: ${created.address}`)
+        return created.address
+      })(),
+    )
   }
 
-  // Create a new PaymentIntent for crypto deposit
-  const decimals = 6
-  const amountInCents = Number(10000) / 10 ** (decimals - 2) // $0.10 for API access
+  return depositAddressCache.get(network)! as Promise<`0x${string}`>
+}
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: amountInCents,
+// Records a settled on-chain transaction as a Stripe PaymentIntent.
+// Fire-and-forget: call without await and catch errors so failures don't block the response.
+export async function recordCryptoPayment(
+  transactionHash: string,
+  network: string,
+  amountCents: number,
+): Promise<void> {
+  await stripe.paymentIntents.create({
+    amount: amountCents,
     currency: "usd",
     payment_method_types: ["crypto"],
-    payment_method_data: {
-      type: "crypto",
-    },
+    payment_method_data: { type: "crypto" },
     payment_method_options: {
       crypto: {
-        mode: "deposit",
-        deposit_options: {
-          networks: ["tempo"],
+        mode: "transaction_verification",
+        transaction_verification_options: {
+          transaction_hash: transactionHash,
+          network,
         },
       },
     } as unknown as Record<string, unknown>,
     confirm: true,
   })
+}
 
-  if (
-    !paymentIntent.next_action ||
-    !("crypto_display_details" in paymentIntent.next_action)
-  ) {
-    throw new Error("PaymentIntent did not return expected crypto deposit details")
+// Extracts the transaction hash from a Payment-Receipt response header, if the method is tempo.
+export function extractTempoTxHash(response: Response): string | null {
+  const receiptHeader = response.headers.get("Payment-Receipt")
+  if (!receiptHeader) return null
+  try {
+    const receipt = Receipt.deserialize(receiptHeader)
+    if (receipt.method === "tempo") return receipt.reference
+  } catch {
+    // ignore parse errors
   }
-
-  const depositDetails = paymentIntent.next_action.crypto_display_details as unknown as {
-    deposit_addresses?: Record<string, { address?: string }>
-  }
-  const payToAddress = depositDetails.deposit_addresses?.tempo?.address
-
-  if (!payToAddress) {
-    throw new Error("PaymentIntent did not return expected crypto deposit details")
-  }
-
-  console.log(
-    `Created PaymentIntent ${paymentIntent.id} for $${(amountInCents / 100).toFixed(2)} -> ${payToAddress}`
-  )
-
-  paymentCache.set(payToAddress, true)
-  return payToAddress as `0x${string}`
+  return null
 }
