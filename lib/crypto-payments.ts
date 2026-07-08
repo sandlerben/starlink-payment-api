@@ -18,10 +18,10 @@ export async function getOrCreateDepositAddress(network: string = "tempo"): Prom
       network,
       (async () => {
         // Reuse an existing deposit address if one already exists
-        const list = (await stripe.rawRequest("GET", "/v1/crypto/deposit_addresses", {
-          network,
-          limit: 1,
-        })) as { data?: DepositAddressResponse[] }
+        const list = (await stripe.rawRequest(
+          "GET",
+          `/v1/crypto/deposit_addresses?network=${network}&limit=1`,
+        )) as { data?: DepositAddressResponse[] }
 
         if (list.data && list.data.length > 0) {
           console.log(`Reusing deposit address ${list.data[0].id} for network ${network}`)
@@ -67,13 +67,15 @@ export async function recordCryptoPayment(
   })
 }
 
-// Extracts the transaction hash from a Payment-Receipt response header, if the method is tempo.
-export function extractTempoTxHash(response: Response): string | null {
+// Extracts the transaction hash from a Payment-Receipt header for on-chain methods (tempo, evm).
+export function extractCryptoTxHash(response: Response): { hash: string; network: string } | null {
   const receiptHeader = response.headers.get("Payment-Receipt")
   if (!receiptHeader) return null
   try {
     const receipt = Receipt.deserialize(receiptHeader)
-    if (receipt.method === "tempo") return receipt.reference
+    if (receipt.method === "tempo") return { hash: receipt.reference, network: "tempo" }
+    if (receipt.method === "evm") return { hash: receipt.reference, network: "base" }
+    if (receipt.method === "solana") return { hash: receipt.reference, network: "solana" }
   } catch {
     // ignore parse errors
   }

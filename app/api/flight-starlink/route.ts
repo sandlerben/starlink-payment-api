@@ -1,8 +1,9 @@
 import crypto from "crypto"
-import { Mppx, stripe as stripeMpp, tempo } from "mppx/server"
+import { evm, Mppx, stripe as stripeMpp, tempo } from "mppx/server"
+import { solana } from "@solana/mpp/server"
 import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, getFleetStats, isSupportedAirline } from "@/lib/fleet"
-import { extractTempoTxHash, getOrCreateDepositAddress, recordCryptoPayment } from "@/lib/crypto-payments"
+import { extractCryptoTxHash, getOrCreateDepositAddress, recordCryptoPayment } from "@/lib/crypto-payments"
 import { NextRequest } from "next/server"
 
 // MPP secret key for securing payment challenges
@@ -15,6 +16,12 @@ const PATH_USD_MAINNET = "0x20c000000000000000000000b9537d11c60e8b50"
 // Prices: $0.50 for card, $0.01 for crypto
 const CARD_PRICE = "0.50"
 const CRYPTO_PRICE = "0.01"
+
+// x402 facilitator URL for EVM settlement
+const X402_FACILITATOR = "https://x402.org/facilitator"
+
+// Solana USDC mint address
+const SOLANA_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,49 +63,77 @@ export async function POST(request: NextRequest) {
 
     const description = `Flight Starlink Check: ${flightNumber.toUpperCase()}`
 
-    // Try to get a Stripe-managed Tempo deposit address; fall back to env var; null = no crypto
+    // Get Stripe-managed deposit addresses for each supported network
+    const [tempoRecipient, baseRecipient, solanaRecipient] = await Promise.all([
+      getOrCreateDepositAddress("tempo").catch(() => null),
+      getOrCreateDepositAddress("base").catch(() => null),
+      getOrCreateDepositAddress("solana").catch(() => null),
+    ])
+
+    // Fall back to env var for Tempo if deposit address API not available
     const recipientAddress: `0x${string}` | null =
-      await getOrCreateDepositAddress("tempo").catch(() => null) ??
-      (process.env.TEMPO_RECIPIENT_ADDRESS as `0x${string}` | undefined) ??
-      null
+      tempoRecipient ?? (process.env.TEMPO_RECIPIENT_ADDRESS as `0x${string}` | undefined) ?? null
 
     // Use the incoming host as the realm so it matches any alias or custom domain
     const realm = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? undefined
 
-    // Create MPP handler with Tempo (crypto, if address available) and Stripe (card)
-    const mppx = Mppx.create({
-      methods: [
-        ...(recipientAddress
-          ? [
-              tempo.charge({
-                currency: isTestnet ? PATH_USD_TESTNET : PATH_USD_MAINNET,
-                recipient: recipientAddress,
-                testnet: isTestnet,
-              }),
-            ]
-          : []),
-        stripeMpp.charge({
-          networkId: process.env.STRIPE_PROFILE_ID || "internal",
-          paymentMethodTypes: ["card", "link"],
-          secretKey: process.env.STRIPE_SECRET_KEY!,
-        }),
-      ],
-      realm,
-      secretKey: mppSecretKey,
-    })
+    // Build payment methods: EVM/x402 (Base), Solana, Tempo, and Stripe cards
+    const methods = [
+      // EVM/x402: Base USDC with x402 facilitator
+      ...(baseRecipient
+        ? [
+            evm.charge({
+              currency: isTestnet ? evm.assets.baseSepolia.USDC : evm.assets.base.USDC,
+              recipient: baseRecipient,
+              x402: { facilitator: X402_FACILITATOR },
+            }),
+          ]
+        : []),
+      // Solana: USDC via SPL transfer
+      ...(solanaRecipient
+        ? [
+            solana.charge({
+              recipient: solanaRecipient,
+              currency: SOLANA_USDC,
+              decimals: 6,
+              network: isTestnet ? "devnet" : "mainnet-beta",
+            }),
+          ]
+        : []),
+      // Tempo: direct on-chain stablecoin
+      ...(recipientAddress
+        ? [
+            tempo.charge({
+              currency: isTestnet ? PATH_USD_TESTNET : PATH_USD_MAINNET,
+              recipient: recipientAddress,
+              testnet: isTestnet,
+            }),
+          ]
+        : []),
+      // Stripe: card and link via SPT
+      stripeMpp.charge({
+        networkId: process.env.STRIPE_PROFILE_ID || "internal",
+        paymentMethodTypes: ["card", "link"],
+        secretKey: process.env.STRIPE_SECRET_KEY!,
+      }),
+    ]
 
-    // Per-method pricing: $0.01 crypto (when available), $0.50 card
-    const result = recipientAddress
-      ? await mppx.compose(
-          ['tempo/charge', { amount: CRYPTO_PRICE, description }],
-          ['stripe/charge', { amount: CARD_PRICE, currency: 'usd', decimals: 2, description }],
-        )(request)
-      : await mppx.charge({
-          amount: CARD_PRICE,
-          currency: "usd",
-          decimals: 2,
-          description,
-        })(request)
+    const mppx = Mppx.create({ methods, realm, secretKey: mppSecretKey })
+
+    // Build compose entries for all available crypto methods + card
+    const composeEntries: [string, Record<string, unknown>][] = []
+    if (baseRecipient) {
+      composeEntries.push(['evm/charge', { amount: CRYPTO_PRICE, description }])
+    }
+    if (solanaRecipient) {
+      composeEntries.push(['solana/charge', { amount: CRYPTO_PRICE, description }])
+    }
+    if (recipientAddress) {
+      composeEntries.push(['tempo/charge', { amount: CRYPTO_PRICE, description }])
+    }
+    composeEntries.push(['stripe/charge', { amount: CARD_PRICE, currency: 'usd', decimals: 2, description }])
+
+    const result = await mppx.compose(...composeEntries as [any, ...any[]])(request)
 
     // If payment is required, return the challenge
     if (result.status === 402) {
@@ -108,9 +143,9 @@ export async function POST(request: NextRequest) {
     // Wrap withReceipt to also record Tempo payments asynchronously
     const withReceiptAndRecord = (response: Response) => {
       const finalResponse = result.withReceipt(response)
-      const txHash = extractTempoTxHash(finalResponse)
-      if (txHash) {
-        recordCryptoPayment(txHash, "tempo", 1)
+      const cryptoTx = extractCryptoTxHash(finalResponse)
+      if (cryptoTx) {
+        recordCryptoPayment(cryptoTx.hash, cryptoTx.network, 1)
           .catch((err) => console.error("Failed to record crypto payment:", err))
       }
       return finalResponse
@@ -214,7 +249,12 @@ export async function GET() {
     service: "Flight Starlink Checker API",
     description: "Check if a United Airlines flight has Starlink WiFi",
     price: { card: `$${CARD_PRICE}`, crypto: `$${CRYPTO_PRICE}` },
-    paymentMethods: ["Crypto (USDC via Tempo)", "Card (via Stripe SPT)"],
+    paymentMethods: [
+      "EVM/x402 (USDC on Base)",
+      "Solana (USDC via SPL)",
+      "Tempo (USDC on-chain)",
+      "Card/Link (via Stripe SPT)",
+    ],
     usage: {
       method: "POST",
       endpoint: "/api/flight-starlink",
