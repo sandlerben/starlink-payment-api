@@ -97,6 +97,13 @@ export async function GET(
       return Response.json({ error: "Unsupported airline", supportedAirlines: ["UA"] }, { status: 400 })
     }
 
+    // --- Look up flight (before charging) ---
+
+    const flightInfo = await getFlightFromAeroAPI(flightNumber)
+    if (!flightInfo) {
+      return Response.json({ flightNumber: flightNumber.toUpperCase(), found: false }, { status: 404 })
+    }
+
     // --- Payment ---
 
     const isTestnet = process.env.TEMPO_TESTNET === "true"
@@ -149,13 +156,6 @@ export async function GET(
     if (result.status === 402) return result.challenge
 
     // --- Serve content ---
-
-    const flightInfo = await getFlightFromAeroAPI(flightNumber)
-    if (!flightInfo) {
-      const response = result.withReceipt(Response.json({ flightNumber: flightNumber.toUpperCase(), found: false }, { status: 404 }))
-      recordPayment(response)
-      return response
-    }
 
     const tailNumber = flightInfo.tailNumber
     const aircraftInfo = tailNumber ? getAircraftWifiProvider(tailNumber) : null
