@@ -1,44 +1,111 @@
 import "server-only"
 
 import crypto from "crypto"
+import Stripe from "stripe"
+import { Receipt } from "mppx"
 import { evm, Mppx, stripe as stripeMpp, tempo } from "mppx/server"
 import { solana } from "@solana/mpp/server"
 import { facilitator as cdpFacilitator } from "@coinbase/x402"
-import { getOrCreateDepositAddress, extractCryptoTxHash, recordCryptoPayment } from "./crypto-payments"
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2026-03-04.preview" as Stripe.LatestApiVersion,
+})
+
+// --- Config ---
 
 const mppSecretKey = process.env.MPP_SECRET_KEY || crypto.randomBytes(32).toString("base64")
-
 const PATH_USD_TESTNET = "0x20c0000000000000000000000000000000000000"
 const PATH_USD_MAINNET = "0x20c000000000000000000000b9537d11c60e8b50"
 const SOLANA_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-
-export const CARD_PRICE = "0.50"
-export const CRYPTO_PRICE = "0.01"
+const CARD_PRICE = "0.50"
+const CRYPTO_PRICE = "0.01"
 const SOLANA_ATOMIC_PRICE = "10000"
+
+// --- Stripe deposit addresses ---
+
+type DepositAddressResponse = { id: string; address: string; network: string }
+
+const depositAddressCache = new Map<string, Promise<string>>()
+
+async function getOrCreateDepositAddress(network: string): Promise<`0x${string}`> {
+  if (!depositAddressCache.has(network)) {
+    depositAddressCache.set(
+      network,
+      (async () => {
+        const list = (await stripe.rawRequest(
+          "GET",
+          `/v1/crypto/deposit_addresses?network=${network}&limit=1`,
+        )) as { data?: DepositAddressResponse[] }
+
+        if (list.data && list.data.length > 0) return list.data[0].address
+
+        const created = (await stripe.rawRequest("POST", "/v1/crypto/deposit_addresses", {
+          network,
+        })) as DepositAddressResponse
+        return created.address
+      })(),
+    )
+  }
+  return depositAddressCache.get(network)! as Promise<`0x${string}`>
+}
+
+// --- x402 facilitator (Coinbase CDP) ---
 
 const x402Facilitator = (() => {
   const { url, createAuthHeaders } = cdpFacilitator
   return {
     async verify(paymentPayload: unknown, paymentRequirements: unknown) {
       const headers = await createAuthHeaders()
-      const response = await fetch(`${url}/verify`, {
+      const res = await fetch(`${url}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers.verify },
         body: JSON.stringify({ paymentPayload, paymentRequirements, x402Version: 2 }),
       })
-      return response.json()
+      return res.json()
     },
     async settle(paymentPayload: unknown, paymentRequirements: unknown) {
       const headers = await createAuthHeaders()
-      const response = await fetch(`${url}/settle`, {
+      const res = await fetch(`${url}/settle`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers.settle },
         body: JSON.stringify({ paymentPayload, paymentRequirements, x402Version: 2 }),
       })
-      return response.json()
+      return res.json()
     },
   }
 })()
+
+// --- Stripe PI recording ---
+
+function recordCryptoPayment(transactionHash: string, network: string, amountCents: number) {
+  stripe.paymentIntents.create({
+    amount: amountCents,
+    currency: "usd",
+    payment_method_types: ["crypto"],
+    payment_method_data: { type: "crypto" },
+    payment_method_options: {
+      crypto: {
+        mode: "transaction_verification",
+        transaction_verification_options: { transaction_hash: transactionHash, network },
+      },
+    } as unknown as Record<string, unknown>,
+    confirm: true,
+  }).catch((err) => console.error("Failed to record crypto payment:", err))
+}
+
+function extractCryptoTxHash(response: Response): { hash: string; network: string } | null {
+  const header = response.headers.get("Payment-Receipt")
+  if (!header) return null
+  try {
+    const receipt = Receipt.deserialize(header)
+    if (receipt.method === "tempo") return { hash: receipt.reference, network: "tempo" }
+    if (receipt.method === "evm") return { hash: receipt.reference, network: "base" }
+    if (receipt.method === "solana") return { hash: receipt.reference, network: "solana" }
+  } catch {}
+  return null
+}
+
+// --- Main payment handler ---
 
 type PaymentResult =
   | { paid: false; challenge: Response }
@@ -112,10 +179,7 @@ export async function handlePayment(request: Request, description: string): Prom
     withReceipt: (response: Response) => {
       const finalResponse = result.withReceipt(response)
       const cryptoTx = extractCryptoTxHash(finalResponse)
-      if (cryptoTx) {
-        recordCryptoPayment(cryptoTx.hash, cryptoTx.network, 1)
-          .catch((err) => console.error("Failed to record crypto payment:", err))
-      }
+      if (cryptoTx) recordCryptoPayment(cryptoTx.hash, cryptoTx.network, 1)
       return finalResponse
     },
   }

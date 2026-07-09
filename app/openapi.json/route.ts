@@ -1,10 +1,8 @@
-const PATH_USD = "0x20c0000000000000000000000000000000000000"
-
 const doc = {
   openapi: "3.1.0",
   info: {
     title: "Flight Starlink Checker API",
-    version: "1.0.0",
+    version: "2.0.0",
   },
   "x-service-info": {
     categories: ["data", "travel"],
@@ -15,14 +13,8 @@ const doc = {
   paths: {
     "/api/flight-starlink": {
       post: {
-        summary: "Check if a United Airlines flight has Starlink WiFi",
-        "x-payment-info": {
-          method: "tempo",
-          intent: "charge",
-          amount: "10000",
-          currency: PATH_USD,
-          description: "Check if a United Airlines flight has Starlink WiFi ($0.01 crypto / $0.50 card)",
-        },
+        summary: "Check if a flight has Starlink WiFi (POST with body)",
+        "x-payment-required": true,
         requestBody: {
           required: true,
           content: {
@@ -31,14 +23,8 @@ const doc = {
                 type: "object",
                 required: ["flightNumber"],
                 properties: {
-                  flightNumber: {
-                    type: "string",
-                    example: "UA2145",
-                  },
-                  date: {
-                    type: "string",
-                    example: "2026-06-25",
-                  },
+                  flightNumber: { type: "string", example: "UA2145" },
+                  date: { type: "string", example: "2026-07-10" },
                 },
               },
             },
@@ -48,7 +34,27 @@ const doc = {
           "200": { description: "Flight found with Starlink WiFi status" },
           "402": { description: "Payment required" },
           "400": { description: "Missing or unsupported flight number" },
-          "404": { description: "Flight not found in FlightAware" },
+          "404": { description: "Flight not found" },
+        },
+      },
+    },
+    "/api/flight-starlink/{flightNumber}": {
+      get: {
+        summary: "Check if a flight has Starlink WiFi (x402-compatible GET)",
+        "x-payment-required": true,
+        parameters: [
+          {
+            name: "flightNumber",
+            in: "path",
+            required: true,
+            schema: { type: "string", example: "UA2145" },
+          },
+        ],
+        responses: {
+          "200": { description: "Flight found with Starlink WiFi status" },
+          "402": { description: "Payment required" },
+          "400": { description: "Unsupported airline" },
+          "404": { description: "Flight not found" },
         },
       },
     },

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "project": {
+    "initializedAt": "2026-07-07T17:36:38.048Z",
+    "merchantDisplayName": "Starlink API",
+    "merchantId": "acct_1TW4KvPRfTNaYL4R",
+    "projectId": "project_61V00sXYyILnldYeg16UfSIH2OSQQ9DwyzOo9yTpw1tY",
+    "projectName": "starlink-payment-api"
+  },
+  "providers": {},
+  "resources": {}
+}
