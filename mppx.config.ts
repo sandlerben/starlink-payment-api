@@ -2,7 +2,8 @@ import { defineConfig } from 'mppx/cli'
 import { evm } from 'mppx/client'
 import { privateKeyToAccount } from 'viem/accounts'
 
-const account = privateKeyToAccount(process.env.MPPX_PRIVATE_KEY as `0x${string}` || '0xfcc6105d8cc4f5b77626a7747e780b5f31a472d9c7d2a733b9dc1e0099cf2e10')
+if (!process.env.MPPX_PRIVATE_KEY) throw new Error("MPPX_PRIVATE_KEY env var required")
+const account = privateKeyToAccount(process.env.MPPX_PRIVATE_KEY as `0x${string}`)
 
 export default defineConfig({
   methods: [

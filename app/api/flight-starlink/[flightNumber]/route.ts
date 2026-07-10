@@ -25,7 +25,7 @@ export async function GET(
       return Response.json({ flightNumber: flightNumber.toUpperCase(), found: false }, { status: 404 })
     }
 
-    const result = await mpp.handlePayment(request, {
+    const result = await mpp.withPayment(request, {
       amount: (method) => method === "stripe/charge" ? "0.50" : "0.01",
       description: `Flight Starlink Check: ${flightNumber.toUpperCase()}`,
     })

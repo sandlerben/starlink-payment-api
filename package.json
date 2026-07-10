@@ -65,7 +65,7 @@
     "server-only": "^0.0.1",
     "sonner": "^1.7.1",
     "stripe": "^22.1.1",
-    "stripe-mpp": "git+https://github.com/bensandler-stripe/stripe-mpp.git",
+    "stripe-mpp": "github:bensandler-stripe/stripe-mpp",
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
     "viem": "^2.54.6",
