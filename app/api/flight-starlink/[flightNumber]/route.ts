@@ -3,10 +3,16 @@ import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, isSupportedAirline } from "@/lib/fleet"
 import { NextRequest } from "next/server"
 
-const mpp = await StripeMPP.create({
-  secretKey: process.env.STRIPE_SECRET_KEY!,
-  profileId: process.env.STRIPE_PROFILE_ID || "internal",
-})
+let mpp: StripeMPP
+async function getMpp() {
+  if (!mpp) {
+    mpp = await StripeMPP.create({
+      secretKey: process.env.STRIPE_SECRET_KEY!,
+      profileId: process.env.STRIPE_PROFILE_ID!,
+    })
+  }
+  return mpp
+}
 
 export async function GET(
   request: NextRequest,
@@ -25,7 +31,7 @@ export async function GET(
       return Response.json({ flightNumber: flightNumber.toUpperCase(), found: false }, { status: 404 })
     }
 
-    const result = await mpp.withPayment(request, {
+    const result = await (await getMpp()).withPayment(request, {
       amount: (method) => method === "stripe/charge" ? "0.50" : "0.01",
       description: `Flight Starlink Check: ${flightNumber.toUpperCase()}`,
     })
