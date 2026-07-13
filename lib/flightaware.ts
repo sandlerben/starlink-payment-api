@@ -8,6 +8,8 @@
 import { fetchWithRetry } from "./fetch"
 
 const AEROAPI_BASE = "https://aeroapi.flightaware.com/aeroapi"
+const cache = new Map<string, { data: FlightInfo | null; expires: number }>()
+const CACHE_TTL_MS = 60_000
 
 // Map IATA airline codes to ICAO codes (FlightAware uses ICAO)
 const IATA_TO_ICAO: Record<string, string> = {
@@ -64,10 +66,16 @@ export async function getFlightFromAeroAPI(
   date?: string // YYYY-MM-DD format
 ): Promise<FlightInfo | null> {
   const apiKey = process.env.FLIGHTAWARE_API_KEY
-  
+
   if (!apiKey) {
     console.error("FLIGHTAWARE_API_KEY not set")
     return null
+  }
+
+  const cacheKey = `${flightNumber}:${date || ""}`
+  const cached = cache.get(cacheKey)
+  if (cached && cached.expires > Date.now()) {
+    return cached.data
   }
   
   const icaoFlightId = normalizeFlightNumber(flightNumber)
@@ -99,6 +107,7 @@ export async function getFlightFromAeroAPI(
     const flights = data.flights || []
     console.log(`[flightaware] ${icaoFlightId}: ${flights.length} flights found`)
     if (flights.length === 0) {
+      cache.set(cacheKey, { data: null, expires: Date.now() + CACHE_TTL_MS })
       return null
     }
 
@@ -106,7 +115,7 @@ export async function getFlightFromAeroAPI(
       f.status === "Scheduled" || f.status === "En Route"
     ) || flights[0]
 
-    return {
+    const result: FlightInfo = {
       flightNumber: flightNumber.toUpperCase(),
       icaoFlightId,
       tailNumber: flight.registration || null,
@@ -117,6 +126,8 @@ export async function getFlightFromAeroAPI(
       arrivalTime: flight.scheduled_in || flight.estimated_in || null,
       status: flight.status || null
     }
+    cache.set(cacheKey, { data: result, expires: Date.now() + CACHE_TTL_MS })
+    return result
   } catch (error) {
     console.error("FlightAware API request failed:", error)
     return null
