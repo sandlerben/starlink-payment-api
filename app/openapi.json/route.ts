@@ -47,6 +47,7 @@ const doc = {
             name: "flightNumber",
             in: "path",
             required: true,
+            example: "UA2145",
             schema: { type: "string", example: "UA2145" },
           },
         ],
