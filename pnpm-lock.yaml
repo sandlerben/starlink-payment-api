@@ -178,7 +178,7 @@ importers:
         version: 22.1.1(@types/node@22.19.11)
       stripe-mpp:
         specifier: github:bensandler-stripe/stripe-mpp
-        version: https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/024417a8774ce13c64a5cff458b0a367b82fa2ec(@coinbase/x402@2.1.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(@solana/mpp@0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))(stripe@22.1.1(@types/node@22.19.11))
+        version: https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/684defab94fd1af388cf7b4b2d72b78be1be4a51(@coinbase/x402@2.1.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(@solana/mpp@0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))(stripe@22.1.1(@types/node@22.19.11))
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
@@ -2907,8 +2907,8 @@ packages:
   stream-json@1.9.1:
     resolution: {integrity: sha512-uWkjJ+2Nt/LO9Z/JyKZbMusL8Dkh97uUBTv3AJQ74y07lVahLY4eEFsPsE97pxYBwr8nnjMAIch5eqI0gPShyw==}
 
-  stripe-mpp@https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/024417a8774ce13c64a5cff458b0a367b82fa2ec:
-    resolution: {tarball: https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/024417a8774ce13c64a5cff458b0a367b82fa2ec}
+  stripe-mpp@https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/684defab94fd1af388cf7b4b2d72b78be1be4a51:
+    resolution: {tarball: https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/684defab94fd1af388cf7b4b2d72b78be1be4a51}
     version: 0.0.1
     peerDependencies:
       '@coinbase/x402': '>=2.0.0'
@@ -5868,7 +5868,7 @@ snapshots:
     dependencies:
       stream-chain: 2.2.5
 
-  stripe-mpp@https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/024417a8774ce13c64a5cff458b0a367b82fa2ec(@coinbase/x402@2.1.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(@solana/mpp@0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))(stripe@22.1.1(@types/node@22.19.11)):
+  stripe-mpp@https://codeload.github.com/bensandler-stripe/stripe-mpp/tar.gz/684defab94fd1af388cf7b4b2d72b78be1be4a51(@coinbase/x402@2.1.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(@solana/mpp@0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))(stripe@22.1.1(@types/node@22.19.11)):
     dependencies:
       '@coinbase/x402': 2.1.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
       '@solana/mpp': 0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@0.8.6(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))
