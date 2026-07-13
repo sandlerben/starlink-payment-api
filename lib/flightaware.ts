@@ -5,6 +5,8 @@
  * Sign up at: https://flightaware.com/aeroapi
  */
 
+import { fetchWithRetry } from "./fetch"
+
 const AEROAPI_BASE = "https://aeroapi.flightaware.com/aeroapi"
 
 // Map IATA airline codes to ICAO codes (FlightAware uses ICAO)
@@ -77,34 +79,32 @@ export async function getFlightFromAeroAPI(
   }
   
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         "x-apikey": apiKey,
         "Accept": "application/json"
       }
     })
-    
+
     if (!response.ok) {
       if (response.status === 404) {
-        return null // Flight not found
+        return null
       }
       console.error(`FlightAware API error: ${response.status}`)
       return null
     }
-    
+
     const data = await response.json()
-    
-    // Get the most recent/relevant flight
+
     const flights = data.flights || []
     if (flights.length === 0) {
       return null
     }
-    
-    // Prefer scheduled or active flights
-    const flight = flights.find((f: any) => 
+
+    const flight = flights.find((f: any) =>
       f.status === "Scheduled" || f.status === "En Route"
     ) || flights[0]
-    
+
     return {
       flightNumber: flightNumber.toUpperCase(),
       icaoFlightId,
