@@ -22,7 +22,7 @@ export async function fetchWithRetry(
 
       clearTimeout(timer)
 
-      if (response.status >= 500 && attempt < retries) {
+      if ((response.status >= 500 || response.status === 429) && attempt < retries) {
         console.warn(`[fetch] ${url} returned ${response.status}, retrying (${attempt + 1}/${retries})`)
         await sleep(retryDelay * (attempt + 1))
         continue

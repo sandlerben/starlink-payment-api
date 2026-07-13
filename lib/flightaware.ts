@@ -86,17 +86,18 @@ export async function getFlightFromAeroAPI(
       }
     })
 
+    console.log(`[flightaware] ${icaoFlightId}: ${response.status}`)
     if (!response.ok) {
       if (response.status === 404) {
         return null
       }
-      console.error(`FlightAware API error: ${response.status}`)
       return null
     }
 
     const data = await response.json()
 
     const flights = data.flights || []
+    console.log(`[flightaware] ${icaoFlightId}: ${flights.length} flights found`)
     if (flights.length === 0) {
       return null
     }
