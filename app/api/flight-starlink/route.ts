@@ -1,12 +1,58 @@
-import { StripeMPP } from "stripe-mpp"
+import { facilitator as cdpFacilitator } from '@coinbase/x402'
+import { solana } from '@solana/mpp/server'
+import { stripe } from 'mppx/server'
 import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, isSupportedAirline } from "@/lib/fleet"
 import { NextRequest } from "next/server"
 
-const mpp = StripeMPP.create({
+// --- MPP setup ---
+
+export const mppxPromise = stripe({
   secretKey: process.env.STRIPE_SECRET_KEY!,
   profileId: process.env.STRIPE_PROFILE_ID!,
+  additional: [
+    { network: 'base', x402: { facilitator: buildCdpFacilitator() } },
+    {
+      network: 'solana',
+      configure: (address) =>
+        solana.charge({
+          recipient: address,
+          currency: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+          decimals: 6,
+          network: process.env.STRIPE_SECRET_KEY!.includes('_test_') ? 'devnet' : 'mainnet-beta',
+        }),
+    },
+  ],
 })
+
+function buildCdpFacilitator() {
+  const { url, createAuthHeaders } = cdpFacilitator as {
+    url: string
+    createAuthHeaders: () => Promise<{ verify: Record<string, string>; settle: Record<string, string> }>
+  }
+  return {
+    async verify(paymentPayload: unknown, paymentRequirements: unknown) {
+      const headers = await createAuthHeaders()
+      const response = await fetch(`${url}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers.verify },
+        body: JSON.stringify({ paymentPayload, paymentRequirements, x402Version: 2 }),
+      })
+      return response.json()
+    },
+    async settle(paymentPayload: unknown, paymentRequirements: unknown) {
+      const headers = await createAuthHeaders()
+      const response = await fetch(`${url}/settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers.settle },
+        body: JSON.stringify({ paymentPayload, paymentRequirements, x402Version: 2 }),
+      })
+      return response.json()
+    },
+  }
+}
+
+// --- Route handler ---
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,10 +74,14 @@ export async function POST(request: NextRequest) {
       return Response.json({ flightNumber: flightNumber.toUpperCase(), found: false }, { status: 404 })
     }
 
-    const result = await mpp.withPayment(request, {
-      amount: (method) => method === "stripe/charge" ? "0.50" : "0.01",
-      description: `Flight Starlink Check: ${flightNumber.toUpperCase()}`,
-    })
+    const description = `Flight Starlink Check: ${flightNumber.toUpperCase()}`
+    const mppx = await mppxPromise
+    const result = await mppx.compose(
+      ["tempo/charge", { amount: "0.01", description }],
+      ["evm/charge", { amount: "0.01", description }],
+      ["solana/charge", { amount: "10000", description }],
+      ["stripe/charge", { amount: "0.50", currency: "usd", decimals: 2, description }],
+    )(request)
 
     if (result.status === 402) return result.challenge
 
