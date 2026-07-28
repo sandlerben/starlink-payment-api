@@ -1,12 +1,7 @@
-import { StripeMPP } from "stripe-mpp"
+import { mppxPromise } from "../route"
 import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, isSupportedAirline } from "@/lib/fleet"
 import { NextRequest } from "next/server"
-
-const mpp = StripeMPP.create({
-  secretKey: process.env.STRIPE_SECRET_KEY!,
-  profileId: process.env.STRIPE_PROFILE_ID!,
-})
 
 export async function GET(
   request: NextRequest,
@@ -25,10 +20,14 @@ export async function GET(
       return Response.json({ flightNumber: flightNumber.toUpperCase(), found: false }, { status: 404 })
     }
 
-    const result = await mpp.withPayment(request, {
-      amount: (method) => method === "stripe/charge" ? "0.50" : "0.01",
-      description: `Flight Starlink Check: ${flightNumber.toUpperCase()}`,
-    })
+    const description = `Flight Starlink Check: ${flightNumber.toUpperCase()}`
+    const mppx = await mppxPromise
+    const result = await mppx.compose(
+      ["tempo/charge", { amount: "0.01", description }],
+      ["evm/charge", { amount: "0.01", description }],
+      ["solana/charge", { amount: "10000", description }],
+      ["stripe/charge", { amount: "0.50", currency: "usd", decimals: 2, description }],
+    )(request)
 
     if (result.status === 402) return result.challenge
 
