@@ -1,4 +1,4 @@
-import { getMppx, recordCryptoPayment } from "../route"
+import { getMppx } from "../route"
 import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, isSupportedAirline } from "@/lib/fleet"
 import { NextRequest } from "next/server"
@@ -28,8 +28,8 @@ export async function GET(
     const result = await mppx.compose(
       ["tempo/charge", { amount: "0.01", description }],
       ["evm/charge", { amount: "0.01", description }],
-      ["solana/charge", { amount: "10000", description }],
-      ["stripe/charge", { amount: "0.50", currency: "usd", decimals: 2, description }],
+      ["solana/charge", { amount: "10000", description }] as any,
+      ["stripe/charge", { amount: "0.50", description }],
     )(request)
 
     if (result.status === 402) return result.challenge
@@ -37,7 +37,7 @@ export async function GET(
     const tailNumber = flightInfo.tailNumber
     const aircraftInfo = tailNumber ? getAircraftWifiProvider(tailNumber) : null
 
-    const response = result.withReceipt(
+    return result.withReceipt(
       Response.json({
         flightNumber: flightInfo.flightNumber,
         origin: flightInfo.origin,
@@ -49,8 +49,6 @@ export async function GET(
         wifiProvider: aircraftInfo?.wifiProvider ?? "Unknown",
       }),
     )
-    await recordCryptoPayment(response, 1)
-    return response
   } catch (error) {
     console.error("API Error:", error)
     return Response.json({ error: "Internal server error" }, { status: 500 })
