@@ -1,4 +1,6 @@
 import crypto from "node:crypto"
+import Stripe from "stripe"
+import { Receipt } from "mppx"
 import { facilitator as cdpFacilitator } from "@coinbase/x402"
 import { solana } from "@solana/mpp/server"
 import { evm, Mppx, stripe, tempo } from "mppx/server"
@@ -44,9 +46,13 @@ function buildCdpFacilitator() {
 
 // --- MPP setup (lazy-init for Vercel) ---
 
+let stripeClient: Stripe | null = null
+
 async function setup() {
   const secretKey = process.env.STRIPE_SECRET_KEY!
   const isTestMode = secretKey.includes("_test_")
+
+  stripeClient = new Stripe(secretKey)
 
   // Resolve deposit addresses from Stripe
   const stripeHeaders = {
@@ -142,6 +148,39 @@ export async function getMppx() {
   return setupPromise
 }
 
+// --- Crypto PI recording (fire-and-forget) ---
+
+export function recordCryptoPayment(response: Response, amountCents: number) {
+  const receiptHeader = response.headers.get("Payment-Receipt")
+  if (!receiptHeader || !stripeClient) return
+  try {
+    const receipt = Receipt.deserialize(receiptHeader)
+    const network =
+      receipt.method === "tempo" ? "tempo" :
+      receipt.method === "evm" ? "base" :
+      receipt.method === "solana" ? "solana" :
+      null
+    if (network) {
+      stripeClient.paymentIntents.create({
+        amount: amountCents,
+        currency: "usd",
+        confirm: true,
+        payment_method_data: { type: "crypto" } as any,
+        payment_method_types: ["crypto"],
+        payment_method_options: {
+          crypto: {
+            mode: "transaction_verification",
+            transaction_verification_options: { network, transaction_hash: receipt.reference },
+          },
+        } as any,
+      }, {
+        apiVersion: "2026-02-25.preview" as any,
+        idempotencyKey: receipt.reference,
+      }).catch((err) => console.error("[stripe] failed to record crypto payment:", err))
+    }
+  } catch {}
+}
+
 // --- Route handler ---
 
 export async function POST(request: NextRequest) {
@@ -184,7 +223,7 @@ export async function POST(request: NextRequest) {
     const tailNumber = flightInfo.tailNumber
     const aircraftInfo = tailNumber ? getAircraftWifiProvider(tailNumber) : null
 
-    return result.withReceipt(
+    const response = result.withReceipt(
       Response.json({
         flightNumber: flightInfo.flightNumber,
         origin: flightInfo.origin,
@@ -198,6 +237,8 @@ export async function POST(request: NextRequest) {
         wifiProvider: aircraftInfo?.wifiProvider ?? "Unknown",
       }),
     )
+    recordCryptoPayment(response, 1)
+    return response
   } catch (error) {
     console.error("API Error:", error)
     return Response.json({ error: "Internal server error" }, { status: 500 })
