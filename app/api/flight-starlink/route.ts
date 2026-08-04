@@ -10,7 +10,8 @@ import { NextRequest } from "next/server"
 
 const TEMPO_USDC_TESTNET = "0x20c0000000000000000000000000000000000000" as `0x${string}`
 const TEMPO_USDC_MAINNET = "0x20c000000000000000000000b9537d11c60e8b50" as `0x${string}`
-const SOLANA_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+const SOLANA_USDC_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+const SOLANA_USDC_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 
 // --- x402 facilitator (Coinbase CDP) ---
 
@@ -110,7 +111,7 @@ async function setup() {
       ? [
           solana.charge({
             recipient: solanaAddress,
-            currency: SOLANA_USDC,
+            currency: isTestMode ? SOLANA_USDC_DEVNET : SOLANA_USDC_MAINNET,
             decimals: 6,
             network: isTestMode ? "devnet" : "mainnet-beta",
           }),
