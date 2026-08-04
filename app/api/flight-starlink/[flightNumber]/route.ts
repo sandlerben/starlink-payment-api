@@ -49,7 +49,7 @@ export async function GET(
         wifiProvider: aircraftInfo?.wifiProvider ?? "Unknown",
       }),
     )
-    recordCryptoPayment(response, 1)
+    await recordCryptoPayment(response, 1)
     return response
   } catch (error) {
     console.error("API Error:", error)

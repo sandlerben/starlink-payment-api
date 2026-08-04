@@ -150,7 +150,7 @@ export async function getMppx() {
 
 // --- Crypto PI recording (fire-and-forget) ---
 
-export function recordCryptoPayment(response: Response, amountCents: number) {
+export async function recordCryptoPayment(response: Response, amountCents: number) {
   const receiptHeader = response.headers.get("Payment-Receipt")
   if (!receiptHeader || !stripeClient) {
     console.log("[pi-recording] skipped: no receipt header or no stripe client", { receiptHeader: !!receiptHeader, stripeClient: !!stripeClient })
@@ -169,7 +169,7 @@ export function recordCryptoPayment(response: Response, amountCents: number) {
       return
     }
     console.log("[pi-recording] creating PI:", { network, txHash: receipt.reference, amountCents })
-    stripeClient.paymentIntents.create({
+    const pi = await stripeClient.paymentIntents.create({
       amount: amountCents,
       currency: "usd",
       confirm: true,
@@ -184,11 +184,8 @@ export function recordCryptoPayment(response: Response, amountCents: number) {
     }, {
       apiVersion: "2026-02-25.preview" as any,
       idempotencyKey: receipt.reference,
-    }).then((pi) => {
-      console.log("[pi-recording] SUCCESS:", { id: pi.id, status: pi.status })
-    }).catch((err) => {
-      console.error("[pi-recording] FAILED:", err.message || err)
     })
+    console.log("[pi-recording] SUCCESS:", { id: pi.id, status: pi.status })
   } catch (e) {
     console.error("[pi-recording] exception:", e)
   }
@@ -250,7 +247,7 @@ export async function POST(request: NextRequest) {
         wifiProvider: aircraftInfo?.wifiProvider ?? "Unknown",
       }),
     )
-    recordCryptoPayment(response, 1)
+    await recordCryptoPayment(response, 1)
     return response
   } catch (error) {
     console.error("API Error:", error)
