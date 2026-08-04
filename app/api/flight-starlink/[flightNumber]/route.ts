@@ -1,12 +1,7 @@
-import { StripeMPP } from "stripe-mpp"
+import { getMppx, recordCryptoPayment } from "../route"
 import { getFlightFromAeroAPI } from "@/lib/flightaware"
 import { getAircraftWifiProvider, isSupportedAirline } from "@/lib/fleet"
 import { NextRequest } from "next/server"
-
-const mpp = StripeMPP.create({
-  secretKey: process.env.STRIPE_SECRET_KEY!,
-  profileId: process.env.STRIPE_PROFILE_ID!,
-})
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +12,10 @@ export async function GET(
 
     const airlineCode = flightNumber.match(/^([A-Z]{2,3})/i)?.[1]?.toUpperCase() || ""
     if (!isSupportedAirline(airlineCode)) {
-      return Response.json({ error: "Unsupported airline", supportedAirlines: ["UA"] }, { status: 400 })
+      return Response.json(
+        { error: "Unsupported airline", supportedAirlines: ["UA"] },
+        { status: 400 },
+      )
     }
 
     const flightInfo = await getFlightFromAeroAPI(flightNumber)
@@ -25,26 +23,34 @@ export async function GET(
       return Response.json({ flightNumber: flightNumber.toUpperCase(), found: false }, { status: 404 })
     }
 
-    const result = await mpp.withPayment(request, {
-      amount: (method) => method === "stripe/charge" ? "0.50" : "0.01",
-      description: `Flight Starlink Check: ${flightNumber.toUpperCase()}`,
-    })
+    const description = `Flight Starlink Check: ${flightNumber.toUpperCase()}`
+    const mppx = await getMppx()
+    const result = await mppx.compose(
+      ["tempo/charge", { amount: "0.01", description }],
+      ["evm/charge", { amount: "0.01", description }],
+      ["solana/charge", { amount: "10000", description }],
+      ["stripe/charge", { amount: "0.50", currency: "usd", decimals: 2, description }],
+    )(request)
 
     if (result.status === 402) return result.challenge
 
     const tailNumber = flightInfo.tailNumber
     const aircraftInfo = tailNumber ? getAircraftWifiProvider(tailNumber) : null
 
-    return result.withReceipt(Response.json({
-      flightNumber: flightInfo.flightNumber,
-      origin: flightInfo.origin,
-      destination: flightInfo.destination,
-      departureTime: flightInfo.departureTime,
-      status: flightInfo.status,
-      tailNumber,
-      hasStarlink: aircraftInfo?.hasStarlink ?? null,
-      wifiProvider: aircraftInfo?.wifiProvider ?? "Unknown",
-    }))
+    const response = result.withReceipt(
+      Response.json({
+        flightNumber: flightInfo.flightNumber,
+        origin: flightInfo.origin,
+        destination: flightInfo.destination,
+        departureTime: flightInfo.departureTime,
+        status: flightInfo.status,
+        tailNumber,
+        hasStarlink: aircraftInfo?.hasStarlink ?? null,
+        wifiProvider: aircraftInfo?.wifiProvider ?? "Unknown",
+      }),
+    )
+    recordCryptoPayment(response, 1)
+    return response
   } catch (error) {
     console.error("API Error:", error)
     return Response.json({ error: "Internal server error" }, { status: 500 })
