@@ -152,33 +152,46 @@ export async function getMppx() {
 
 export function recordCryptoPayment(response: Response, amountCents: number) {
   const receiptHeader = response.headers.get("Payment-Receipt")
-  if (!receiptHeader || !stripeClient) return
+  if (!receiptHeader || !stripeClient) {
+    console.log("[pi-recording] skipped: no receipt header or no stripe client", { receiptHeader: !!receiptHeader, stripeClient: !!stripeClient })
+    return
+  }
   try {
     const receipt = Receipt.deserialize(receiptHeader)
+    console.log("[pi-recording] receipt:", { method: receipt.method, reference: receipt.reference, status: receipt.status })
     const network =
       receipt.method === "tempo" ? "tempo" :
       receipt.method === "evm" ? "base" :
       receipt.method === "solana" ? "solana" :
       null
-    if (network) {
-      stripeClient.paymentIntents.create({
-        amount: amountCents,
-        currency: "usd",
-        confirm: true,
-        payment_method_data: { type: "crypto" } as any,
-        payment_method_types: ["crypto"],
-        payment_method_options: {
-          crypto: {
-            mode: "transaction_verification",
-            transaction_verification_options: { network, transaction_hash: receipt.reference },
-          },
-        } as any,
-      }, {
-        apiVersion: "2026-02-25.preview" as any,
-        idempotencyKey: receipt.reference,
-      }).catch((err) => console.error("[stripe] failed to record crypto payment:", err))
+    if (!network) {
+      console.log("[pi-recording] skipped: unknown method or SPT (no crypto recording needed)", { method: receipt.method })
+      return
     }
-  } catch {}
+    console.log("[pi-recording] creating PI:", { network, txHash: receipt.reference, amountCents })
+    stripeClient.paymentIntents.create({
+      amount: amountCents,
+      currency: "usd",
+      confirm: true,
+      payment_method_data: { type: "crypto" } as any,
+      payment_method_types: ["crypto"],
+      payment_method_options: {
+        crypto: {
+          mode: "transaction_verification",
+          transaction_verification_options: { network, transaction_hash: receipt.reference },
+        },
+      } as any,
+    }, {
+      apiVersion: "2026-02-25.preview" as any,
+      idempotencyKey: receipt.reference,
+    }).then((pi) => {
+      console.log("[pi-recording] SUCCESS:", { id: pi.id, status: pi.status })
+    }).catch((err) => {
+      console.error("[pi-recording] FAILED:", err.message || err)
+    })
+  } catch (e) {
+    console.error("[pi-recording] exception:", e)
+  }
 }
 
 // --- Route handler ---
