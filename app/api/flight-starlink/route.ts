@@ -152,24 +152,16 @@ export async function getMppx() {
 
 export async function recordCryptoPayment(response: Response, amountCents: number) {
   const receiptHeader = response.headers.get("Payment-Receipt")
-  if (!receiptHeader || !stripeClient) {
-    console.log("[pi-recording] skipped: no receipt header or no stripe client", { receiptHeader: !!receiptHeader, stripeClient: !!stripeClient })
-    return
-  }
+  if (!receiptHeader || !stripeClient) return
   try {
     const receipt = Receipt.deserialize(receiptHeader)
-    console.log("[pi-recording] receipt:", { method: receipt.method, reference: receipt.reference, status: receipt.status })
     const network =
       receipt.method === "tempo" ? "tempo" :
       receipt.method === "evm" ? "base" :
       receipt.method === "solana" ? "solana" :
       null
-    if (!network) {
-      console.log("[pi-recording] skipped: unknown method or SPT (no crypto recording needed)", { method: receipt.method })
-      return
-    }
-    console.log("[pi-recording] creating PI:", { network, txHash: receipt.reference, amountCents })
-    const pi = await stripeClient.paymentIntents.create({
+    if (!network) return
+    await stripeClient.paymentIntents.create({
       amount: amountCents,
       currency: "usd",
       confirm: true,
@@ -185,9 +177,8 @@ export async function recordCryptoPayment(response: Response, amountCents: numbe
       apiVersion: "2026-02-25.preview" as any,
       idempotencyKey: receipt.reference,
     })
-    console.log("[pi-recording] SUCCESS:", { id: pi.id, status: pi.status })
-  } catch (e) {
-    console.error("[pi-recording] exception:", e)
+  } catch (err) {
+    console.error("[stripe] failed to record crypto payment:", err)
   }
 }
 
