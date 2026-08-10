@@ -99,14 +99,14 @@ importers:
         specifier: 1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@solana-program/token':
-        specifier: ^0.14.0
-        version: 0.14.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
+        specifier: ^0.15.0
+        version: 0.15.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
       '@solana/kit':
         specifier: ^7.0.0
         version: 7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
       '@solana/mpp':
         specifier: ^0.6.0
-        version: 0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@https://codeload.github.com/bensandler-stripe/mppx/tar.gz/ebb982d3ad9db8ea26922924cb1b1787af94e97e(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))
+        version: 0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@0.8.17(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))
       '@solana/web3.js':
         specifier: ^1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
@@ -141,8 +141,8 @@ importers:
         specifier: ^0.564.0
         version: 0.564.0(react@19.2.4)
       mppx:
-        specifier: github:bensandler-stripe/mppx#bensandler/stripe-machine-payments-testable
-        version: https://codeload.github.com/bensandler-stripe/mppx/tar.gz/ebb982d3ad9db8ea26922924cb1b1787af94e97e(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))
+        specifier: ^0.8.17
+        version: 0.8.17(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))
       next:
         specifier: 16.2.4
         version: 16.2.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1192,16 +1192,21 @@ packages:
     peerDependencies:
       '@solana/kit': ^6.4.0
 
+  '@solana-program/system@0.13.0':
+    resolution: {integrity: sha512-Id6QQxCG7ByImXPD5X/c3Ag2kySD+49aJ9waIkfxyUFyokhMQgxYQAx2rKuaygaBlaBQY6VVfBS46pqxZV+99A==}
+    peerDependencies:
+      '@solana/kit': ^7.0.0
+
   '@solana-program/token@0.11.0':
     resolution: {integrity: sha512-/lB72Pcmkn5kjUfP1Vd8F86HBlhN9RN4hJYgUG5csc23w9LCdYom2CiRdGsK25KkR9UFf6ndCCAMh83hMo+ftw==}
     peerDependencies:
       '@solana/kit': ^6.1.0
 
-  '@solana-program/token@0.14.0':
-    resolution: {integrity: sha512-zpLMr6JZndlsQCQvrm0gezfwdr1lmzOGqN6v2WIYXjtDmbF+xg6zh/MAp2UFHRpv3uDmylEdjtQo05pa2OeaYg==}
+  '@solana-program/token@0.15.0':
+    resolution: {integrity: sha512-SeLm08EYIfT453I6lo7wTGgfMbz1s7bJ1jSHFHBFebSJHD3xF46zRgMxq3YKRlr/RM8jN0cG8SjZVu+IDvMxEA==}
     engines: {node: '>=24.0.0'}
     peerDependencies:
-      '@solana/kit': ^6.5.0
+      '@solana/kit': ^7.0.0
 
   '@solana-program/token@0.9.0':
     resolution: {integrity: sha512-vnZxndd4ED4Fc56sw93cWZ2djEeeOFxtaPS8SPf5+a+JZjKA/EnKqzbE1y04FuMhIVrLERQ8uR8H2h72eZzlsA==}
@@ -1520,7 +1525,6 @@ packages:
 
   '@solana/mpp@0.6.0':
     resolution: {integrity: sha512-E/SpsyBiZDq7Vb4xmUbbGgVm8NbLoTCTTRm8ytl7RSt6LlLbNe1ydBT0tUjUaDELX3XSoK2SiSSIpCk17xi8HQ==}
-    version: 0.6.0
     peerDependencies:
       '@solana/kit': '>=6.5.0'
       mppx: '>=0.5.5'
@@ -1987,8 +1991,8 @@ packages:
   '@solana/web3.js@1.98.4':
     resolution: {integrity: sha512-vv9lfnvjUsRiq//+j5pBdXig0IQdtzA0BRZ3bXEP4KaIyF1CcaydWqgyzQgfZMNIsWNWmG+AUHwPy4AHOD6gpw==}
 
-  '@stripe/stripe-js@9.12.0':
-    resolution: {integrity: sha512-wCUYZNYo7E/6B3Rv2i/g/Rmj2mTiOX6HEwWYUWUuNUKwEhzTo/SXuQ1IoNo3mknWIHUQyqdakv1Nl2SiYPrCrw==}
+  '@stripe/stripe-js@9.12.1':
+    resolution: {integrity: sha512-KLXPvjA0BfS4dQnW+ddHjwtIXMnIfKYxqmeNMmQCfKjvYog0cSG+Z7ZvK4RH1+bV90GC07nUztWDRWmJLi5HZQ==}
     engines: {node: '>=12.16'}
 
   '@swc/helpers@0.5.15':
@@ -2674,9 +2678,8 @@ packages:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
 
-  mppx@https://codeload.github.com/bensandler-stripe/mppx/tar.gz/ebb982d3ad9db8ea26922924cb1b1787af94e97e:
-    resolution: {tarball: https://codeload.github.com/bensandler-stripe/mppx/tar.gz/ebb982d3ad9db8ea26922924cb1b1787af94e97e}
-    version: 0.8.15
+  mppx@0.8.17:
+    resolution: {integrity: sha512-6cfaqzsiMh947CqPJPnJBwUJv4yveRRIA52PrxEjNM/36Le7sOpKG9fh5PU9fmTEkfjf0O5vFPGo4tx6tlrRUw==}
     hasBin: true
     peerDependencies:
       '@modelcontextprotocol/sdk': '>=1.25.0'
@@ -4029,14 +4032,18 @@ snapshots:
     dependencies:
       '@solana/kit': 7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
 
+  '@solana-program/system@0.13.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))':
+    dependencies:
+      '@solana/kit': 7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
+
   '@solana-program/token@0.11.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))':
     dependencies:
       '@solana-program/system': 0.12.2(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
       '@solana/kit': 7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
 
-  '@solana-program/token@0.14.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))':
+  '@solana-program/token@0.15.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))':
     dependencies:
-      '@solana-program/system': 0.12.2(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
+      '@solana-program/system': 0.13.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
       '@solana/kit': 7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
 
   '@solana-program/token@0.9.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))':
@@ -4377,13 +4384,13 @@ snapshots:
       - fastestsmallesttextencoderdecoder
       - utf-8-validate
 
-  '@solana/mpp@0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@https://codeload.github.com/bensandler-stripe/mppx/tar.gz/ebb982d3ad9db8ea26922924cb1b1787af94e97e(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))':
+  '@solana/mpp@0.6.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))(mppx@0.8.17(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)))':
     dependencies:
       '@solana-program/compute-budget': 0.15.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
       '@solana-program/system': 0.12.2(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
       '@solana-program/token': 0.11.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6))
       '@solana/kit': 7.0.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)
-      mppx: https://codeload.github.com/bensandler-stripe/mppx/tar.gz/ebb982d3ad9db8ea26922924cb1b1787af94e97e(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))
+      mppx: 0.8.17(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76))
 
   '@solana/nominal-types@5.5.1(typescript@5.7.3)':
     optionalDependencies:
@@ -5008,7 +5015,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@stripe/stripe-js@9.12.0': {}
+  '@stripe/stripe-js@9.12.1': {}
 
   '@swc/helpers@0.5.15':
     dependencies:
@@ -5592,9 +5599,9 @@ snapshots:
     dependencies:
       mime-db: 1.52.0
 
-  mppx@https://codeload.github.com/bensandler-stripe/mppx/tar.gz/ebb982d3ad9db8ea26922924cb1b1787af94e97e(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)):
+  mppx@0.8.17(typescript@5.7.3)(viem@2.54.6(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@6.0.6)(zod@3.25.76)):
     dependencies:
-      '@stripe/stripe-js': 9.12.0
+      '@stripe/stripe-js': 9.12.1
       eventsource-parser: 3.1.0
       incur: 0.4.26
       ox: 0.14.33(typescript@5.7.3)(zod@4.4.3)
